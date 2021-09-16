@@ -11,14 +11,14 @@ import time
 app = Flask(__name__)
 
 # Offline Mode
-# app.config['SECRET_KEY'] = 'any-secret-key-you-choose'
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'any-secret-key-you-choose'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Online Mode (Postgre)
-app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY")
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY")
+# app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
@@ -45,8 +45,9 @@ db.create_all()
 @app.route('/')
 def home():
     logged_in = current_user.is_authenticated
+    print(logged_in)
     return jsonify({
-        'message': 'Logout successful',
+        'logged_in': logged_in,
     })
 
 @app.route('/bot', methods=['POST'])
@@ -117,6 +118,22 @@ def login():
                 'message': 'Wrong password',
                 'username': 'No user',
             })
+
+@app.route('/get_user', methods=["GET"])
+def get_user():
+    logged_in = current_user.is_authenticated
+    print(logged_in)
+    if logged_in:
+        username = current_user.username
+        return jsonify({
+            'logged_in': logged_in,
+            'username': username,
+        })
+    else:
+        return jsonify({
+            'logged_in': logged_in,
+            'username': '<user not logged-in>',
+        })
 
 @app.route('/logout')
 def logout():
