@@ -66,7 +66,7 @@ def register():
 
     if user != None:
         print("user exists, logging in")
-        login_user(user)
+        login_user(user, remember=True)
         return jsonify({
             'message': 'User exists, logging in',
             'username': user.username,
@@ -86,7 +86,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        login_user(new_user)
+        login_user(new_user, remember=True)
         return jsonify({
             'message': 'Register completed',
             'username': new_user.username,
@@ -108,7 +108,7 @@ def login():
     else:
         # check if inserted password, if hashed, matches database's password (previously hashed in registration)
         if check_password_hash(user.password, password):
-            login_user(user)
+            login_user(user, remember=True)
             return jsonify({
                 'message': 'Login successful',
                 'username': user.username,
