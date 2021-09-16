@@ -57,7 +57,7 @@ class TokenBlocklist(db.Model):
     created_at = db.Column(db.DateTime, nullable=False)
 
 #Line below only required once, when creating DB.
-db.create_all()
+# db.create_all()
 
 # ====== FLASK_JWT SETUP 2 ======
 
