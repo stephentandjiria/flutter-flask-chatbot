@@ -6,6 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
 
 from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_refresh_token
 from flask_jwt_extended import get_jwt
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
@@ -23,8 +24,8 @@ app = Flask(__name__)
 # ====== FLASK_JWT SETUP 1 ======
 
 app.config["JWT_SECRET_KEY"] = "asdf1234" # TODO: set in Heroku
-# ACCESS_EXPIRES = timedelta(hours=1)
-# app.config["JWT_ACCESS_TOKEN_EXPIRES"] = ACCESS_EXPIRES # TODO : uncomment if token has expiry time
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=2)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(minutes=5)
 jwt = JWTManager(app)
 
 # ====== DATABASE SETUP ======
@@ -39,7 +40,7 @@ app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY")
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app) # TODO : only for first time database creation
+db = SQLAlchemy(app)
 
 ##CREATE TABLE IN DB
 class User(UserMixin, db.Model):
@@ -57,7 +58,7 @@ class TokenBlocklist(db.Model):
     created_at = db.Column(db.DateTime, nullable=False)
 
 #Line below only required once, when creating DB.
-# db.create_all()
+# db.create_all() # TODO : only for first time database creation
 
 # ====== FLASK_JWT SETUP 2 ======
 
@@ -113,9 +114,11 @@ def register():
         db.session.commit()
 
         access_token = create_access_token(identity=new_user.username)
+        refresh_token = create_refresh_token(identity=new_user.username)
         return jsonify({
-            'msg': 'Register completed',
+            'msg': 'Login successful',
             'access_token': access_token,
+            'refresh_token': refresh_token
         })
 
 @app.route('/login', methods=["POST"])
@@ -134,25 +137,26 @@ def login():
         # check if inserted password, if hashed, matches database's password (previously hashed in registration)
         if check_password_hash(user.password, password):
             access_token = create_access_token(identity=user.username)
+            refresh_token = create_refresh_token(identity=user.username)
             return jsonify({
                 'msg': 'Login successful',
                 'access_token': access_token,
+                'refresh_token': refresh_token
             })
         else:
             return jsonify({
                 'msg': 'Wrong password',
             })
 
-# Protect a route with jwt_required, which will kick out requests
-# without a valid JWT present.
-@app.route("/get_user", methods=["GET"])
-@jwt_required()
-def get_user():
-    # Access the identity of the current user with get_jwt_identity
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
-
-# TODO : Token refresh API route https://flask-jwt-extended.readthedocs.io/en/stable/refreshing_tokens/#explicit-refreshing-with-refresh-tokens
+# Token refresh API route https://flask-jwt-extended.readthedocs.io/en/stable/refreshing_tokens/#explicit-refreshing-with-refresh-tokens
+# We are using the `refresh=True` options in jwt_required to only allow
+# refresh tokens to access this route.
+@app.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    identity = get_jwt_identity()
+    access_token = create_access_token(identity=identity)
+    return jsonify(access_token=access_token)
 
 # Endpoint for revoking the current users access token. Saved the unique
 # identifier (jti) for the JWT into our database.
@@ -164,6 +168,15 @@ def modify_token():
     db.session.add(TokenBlocklist(jti=jti, created_at=now))
     db.session.commit()
     return jsonify(msg="JWT revoked")
+
+# Protect a route with jwt_required, which will kick out requests
+# without a valid JWT present.
+@app.route("/get_user", methods=["GET"])
+@jwt_required()
+def get_user():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
 
 # A blocklisted access token will not be able to access this any more
 # TODO : Any protected API route
